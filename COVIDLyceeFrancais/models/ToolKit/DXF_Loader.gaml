@@ -22,7 +22,7 @@ global
 	file the_dxf_metadata <- file_exists(dataset_path + useCase +"/building.csv") ?csv_file(dataset_path + useCase +"/building.csv",",",true) : nil;
 	float unit <- #cm;//(the_dxf_metadata != nil )? float(matrix(the_dxf_metadata)[1,0]) : #cm;
 	//define the bounds of the studied area
-	file the_dxf_file <- dxf_file(dataset_path + useCase +"/building.dxf",unit);
+	file the_dxf_file <- file_exists(dataset_path + useCase +"/building.dxf") ?dxf_file(dataset_path + useCase +"/building.dxf",unit) : nil;
 	bool validator<-true;
 	geometry shape <- envelope(the_dxf_file);
 	
@@ -47,6 +47,7 @@ global
 	
 	action initiliaze_dxf
 	{  
+		write "alala" + sample(validator);
 		 if(validator){
 			list<string> existing_types <- remove_duplicates(the_dxf_file.contents collect (each get layer));
 			list<string> missing_type_elements <- standard_color_per_layer.keys - existing_types;

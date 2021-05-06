@@ -26,7 +26,9 @@ global {
 	string stairs <- "Stairs";
 	string doors <- "Doors";
 	string chairs <- "Chair";
-
+	string rooms <- "Rooms";
+	string entrances <- "Entrances";
+	string classe <- "classe";
 	
 	string going_home <- "going home";
 	string eating_outside <-"eating outside";

@@ -13,7 +13,7 @@ import "./../ToolKit/DXF_Loader.gaml"
 
 global {
 	
-	list<string> workplace_layer <- [offices, meeting_rooms];
+	list<string> workplace_layer <- [offices, meeting_rooms, classe];
 	float normal_step <- 10#s;
 	float fast_step <- 10#s;
 	bool use_change_step <- true;
@@ -51,7 +51,7 @@ global {
 	float unit <- #cm;
 	shape_file pedestrian_path_shape_file <- shape_file(dataset_path+ useCase+"/pedestrian_path.shp", gama.pref_gis_default_crs);
 	date starting_date <- date([2020,4,6,7]);
-	geometry shape <- envelope(the_dxf_file);
+	geometry shape <- envelope(use_dxf ? the_dxf_file : pedestrian_path_shape_file);
 	graph pedestrian_network;
 	list<room> available_offices;
 	float peopleSize<-0.1#m;
@@ -108,35 +108,22 @@ global {
 	map<string,rgb> color_map <- [ "blue"::rgb(50, 197, 255), "red"::rgb(244, 67, 54),"green"::rgb(109, 212, 0), "orange"::rgb(247, 181, 0)];
 	
 	bool batch_mode <- false;
+	bool use_dxf <- true;
 	
 	init {
 		validator <- false;
+		write sample(use_dxf);
 		outputFilePathName <-"../results/output_" + (#now).year+"_"+(#now).month+"_"+ (#now).day + "_"+ (#now).hour+"_"+ (#now).minute  + "_" + (#now).second+"_distance_"+distance_people+".csv";
-		do initiliaze_dxf;
+		if use_dxf {
+			do initiliaze_dxf;
+		} 
 		create pedestrian_path from: pedestrian_path_shape_file;
 		pedestrian_network <- as_edge_graph(pedestrian_path);
-		loop se over: the_dxf_file  {
-			string type <- se get layer;
-			if (type = walls) {
-				create wall with: [shape::clean(polygon(se.points))];
-			} else if type = entrance {
-				create building_entrance  with: [shape::polygon(se.points), type::type];
-			} else if type = library {
-				create common_area  with: [shape::polygon(se.points), type::type]{
-					if (ventilationType="AC"){
-						isVentilated<-true;
-					}
-				}
-			
-			} else if type in (workplace_layer + [coffee, sanitation]) {
-				create room with: [shape::clean(polygon(se.points)), type::type]{
-					if (ventilationType="AC"){
-						isVentilated<-true;
-					}
-				}	
-			}
+		if use_dxf {
+			do create_elements_from_dxf;
+		} else {
+			do create_elements_from_shapefile;
 		}
-		
 		ask room sort_by (-1 * each.shape.area){
 			ask(room overlapping self) {
 				if (type = myself.type and shape.area>0) {
@@ -254,8 +241,9 @@ global {
 		create working;
 		create going_home_act with:[activity_places:: building_entrance as list];
 		create eating_outside_act with:[activity_places:: building_entrance as list];
-		
-		available_offices <- (workplace_layer accumulate rooms_type[each]) where each.is_available();	
+		write sample(rooms_type);
+		write sample((workplace_layer accumulate rooms_type[each]));
+		available_offices <- (workplace_layer accumulate rooms_type[each]) where (each != nil and each.is_available());	
 		
 		if (movement_model = pedestrian_skill) {
 			do initialize_pedestrian_model;
@@ -309,6 +297,37 @@ global {
 			
 		}
 	}
+	
+	action create_elements_from_dxf {
+		loop se over: the_dxf_file  {
+			string type <- se get layer;
+			if (type = walls) {
+				create wall with: [shape::clean(polygon(se.points))];
+			} else if type = entrance {
+				create building_entrance  with: [shape::polygon(se.points), type::type];
+			} else if type = library {
+				create common_area  with: [shape::polygon(se.points), type::type]{
+					if (ventilationType="AC"){
+						isVentilated<-true;
+					}
+				}
+			
+			} else if type in (workplace_layer + [coffee, sanitation]) {
+				create room with: [shape::clean(polygon(se.points)), type::type]{
+					if (ventilationType="AC"){
+						isVentilated<-true;
+					}
+				}	
+			}
+		}
+	}
+	
+	action create_elements_from_shapefile {
+		create wall from: shape_file(dataset_path+ useCase+"/" + walls + ".shp", gama.pref_gis_default_crs);
+		create room from: shape_file(dataset_path+ useCase+"/" + rooms + ".shp", gama.pref_gis_default_crs) ;
+		create building_entrance from: shape_file(dataset_path+ useCase+"/" + entrances + ".shp", gama.pref_gis_default_crs) with: (type:entrance);
+
+	}	
 	
 	reflex save_model_output when: (cycle = 1 and savetoCSV){
 		// save the values of the variables name, speed and size to the csv file; the rewrite facet is set to false to continue to write in the same file
