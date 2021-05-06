@@ -14,15 +14,15 @@ import "./../ToolKit/DXF_Loader.gaml"
 global {
 	
 	list<string> workplace_layer <- [offices, meeting_rooms, classe];
-	float normal_step <- 10#s;
-	float fast_step <- 10#s;
+	float normal_step <- 1#s;
+	float fast_step <- 1#mn;
 	bool use_change_step <- true;
 	bool synchronized_step <- true;
 	
 	float tolerance_target_param <- 1.0;
-	string agenda_scenario <- "simple" among: ["simple", "custom", "classic day"];
+	string agenda_scenario <- "simple" among: ["simple", "custom", "classic day", "school day"];
 	float step_arrival <- 5#s;
-	float arrival_time_interval <- 0#mn;//15 #mn;
+	float arrival_time_interval <- 25 #mn;
 	
 	float proba_goto_common_area <- 0.4;
 	float proba_wander <- 0.003;
@@ -50,7 +50,7 @@ global {
 	string movement_model <- "pedestrian skill" among: ["moving skill","pedestrian skill"];
 	float unit <- #cm;
 	shape_file pedestrian_path_shape_file <- shape_file(dataset_path+ useCase+"/pedestrian_path.shp", gama.pref_gis_default_crs);
-	date starting_date <- date([2020,4,6,7]);
+	date starting_date <- date([2020,4,6,7,45]);
 	geometry shape <- envelope(use_dxf ? the_dxf_file : pedestrian_path_shape_file);
 	graph pedestrian_network;
 	list<room> available_offices;
@@ -112,13 +112,13 @@ global {
 	
 	init {
 		validator <- false;
-		write sample(use_dxf);
 		outputFilePathName <-"../results/output_" + (#now).year+"_"+(#now).month+"_"+ (#now).day + "_"+ (#now).hour+"_"+ (#now).minute  + "_" + (#now).second+"_distance_"+distance_people+".csv";
 		if use_dxf {
 			do initiliaze_dxf;
 		} 
 		create pedestrian_path from: pedestrian_path_shape_file;
 		pedestrian_network <- as_edge_graph(pedestrian_path);
+		
 		if use_dxf {
 			do create_elements_from_dxf;
 		} else {
@@ -135,7 +135,8 @@ global {
 				}
 			}
 		} 
-		
+		pedestrian_network <- pedestrian_network with_weights (pedestrian_path as_map (each::each.shape.perimeter * (empty(room overlapping each) ? 1.0 : 10.0)));
+	
 		ask room +building_entrance + common_area{
 			list<wall> ws <- wall overlapping self;
 			loop w over: ws {
@@ -241,8 +242,7 @@ global {
 		create working;
 		create going_home_act with:[activity_places:: building_entrance as list];
 		create eating_outside_act with:[activity_places:: building_entrance as list];
-		write sample(rooms_type);
-		write sample((workplace_layer accumulate rooms_type[each]));
+		create multi_activity with:[activity_places::common_area where (each.type = multi_act)];
 		available_offices <- (workplace_layer accumulate rooms_type[each]) where (each != nil and each.is_available());	
 		
 		if (movement_model = pedestrian_skill) {
@@ -325,6 +325,12 @@ global {
 	action create_elements_from_shapefile {
 		create wall from: shape_file(dataset_path+ useCase+"/" + walls + ".shp", gama.pref_gis_default_crs);
 		create room from: shape_file(dataset_path+ useCase+"/" + rooms + ".shp", gama.pref_gis_default_crs) ;
+		ask room {
+			if type = multi_act {
+				create common_area  with: [shape::shape, type::type];
+				do die;
+			}
+		}
 		create building_entrance from: shape_file(dataset_path+ useCase+"/" + entrances + ".shp", gama.pref_gis_default_crs) with: (type:entrance);
 
 	}	
@@ -373,8 +379,37 @@ global {
 	}
 	
 	action create_people(int nb) {
+		map<room,list<date>> to_restaurant;
+		map<room,list<date>> to_multi_act;
+		map<room,date> end_school;
+		
+		if (agenda_scenario = "school day") {
+			list<room> classes <- room where (each.type = classe);
+			loop c over: classes {
+				date lunch_time <- date(current_date.year,current_date.month,current_date.day,11, 10) add_seconds rnd(0, 10 #mn);
+				date lunch_time_end <- lunch_time add_seconds rnd(40 #mn, 50 #mn);
+				to_restaurant[c] <- [lunch_time, lunch_time_end];
+				
+				end_school[c] <- date(current_date.year,current_date.month,current_date.day,14, rnd(10)) ;
+	
+			}
+			
+			list<int> available_hour <- [8,9,10,12,13];
+			loop while: not empty(classes) and not empty(available_hour) {
+				int nb <- length(classes) = 3 ? 3 : rnd(2,3);
+				list<room> sc <- nb among classes;
+				classes <- classes - sc;
+				int h <- one_of(available_hour);
+				available_hour >> h;
+				date beg <-  date(current_date.year,current_date.month,current_date.day,h) ;
+				date end <- beg add_hours 1;
+				loop c over: sc {
+					to_multi_act[c] <- [beg,end];
+				}
+			}
+		}
 		create people number: nb {
-			age <- rnd(18, 70); 
+			age <- rnd(3, 6); 
 			pedestrian_model <- SFM;
 			obstacle_species <- [people, wall];
 			tolerance_target <-tolerance_target_param;
@@ -445,7 +480,25 @@ global {
 			//location <- any_location_in (one_of(building_entrance).init_place);
 			
 			switch agenda_scenario {
-				match "classic day" {
+				match "school day" {
+					list<date> lunch_time <- to_restaurant[working_place];
+					list<date> act_time <- to_multi_act[working_place];
+					date end_day <- end_school[working_place];
+					if (act_time[0] < lunch_time[0]) {
+						agenda_day[act_time[0]] <-first(multi_activity); 
+						agenda_day[act_time[1]] <-first(working); 
+					}
+				
+					agenda_day[lunch_time[0]] <-first(eating_outside_act) ;
+					agenda_day[lunch_time[1]] <- first(working);
+					
+					if (act_time[0] > lunch_time[0]) {
+						agenda_day[act_time[0]] <-first(multi_activity); 
+						agenda_day[act_time[1]] <-first(working); 
+					}
+					agenda_day[end_day] <- first(going_home_act);
+	
+				}match "classic day" {
 					date lunch_time <- date(current_date.year,current_date.month,current_date.day,11, 30) add_seconds rnd(0, 40 #mn);
 					time_first_lunch <-((time_first_lunch = nil) or (time_first_lunch > lunch_time)) ? lunch_time : time_first_lunch;
 					activity act_coffee <- activity first_with (each.name = coffee);
@@ -516,7 +569,23 @@ global {
 	
 	reflex change_step when: use_change_step{
 		
-		if (agenda_scenario = "classic day") {
+		if (agenda_scenario = "schoold day") {
+			if (current_date.hour >= 8 and current_date.minute >= 10 and empty(people where (each.target != nil)))  {
+				step <- fast_step;
+			}
+			if (current_date.hour >= 11 and current_date.minute >= 15){
+				step <- normal_step;
+			}
+			if (current_date.hour >= 11 and current_date.minute > 30 and empty(people where (each.target != nil)))  {
+				step <- fast_step;
+			} 
+			if (current_date.hour >= 12){
+				step <- normal_step;
+			}
+			if (not empty(people where (each.target != nil))) {
+				step <- normal_step;
+			}
+		}if (agenda_scenario = "classic day") {
 			if (current_date.hour >= 7 and current_date.minute > 3 and empty(people where (each.target != nil)))  {
 				step <- fast_step;
 			}
@@ -1066,7 +1135,11 @@ species activity {
 	}
 	
 }
-
+species multi_activity parent: activity {
+	room get_place(people p) {
+		return first(activity_places);
+	}
+}
 species working parent: activity {
 	
 	room get_place(people p) {

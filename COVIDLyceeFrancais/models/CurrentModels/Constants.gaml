@@ -29,7 +29,7 @@ global {
 	string rooms <- "Rooms";
 	string entrances <- "Entrances";
 	string classe <- "classe";
-	
+	string multi_act <- "multi-act";
 	string going_home <- "going home";
 	string eating_outside <-"eating outside";
 	
