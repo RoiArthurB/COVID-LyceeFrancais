@@ -367,7 +367,7 @@ grid cell cell_width: world.shape.width/100 cell_height:world.shape.width/100 ne
 	int nbInfection;	
 }
 
-experiment Coronaizer type:gui autorun:false{
+experiment Coronaizer type:gui autorun:false virtual: true{
 
 	//See issue #180
 	/*action _init_ {
@@ -574,7 +574,7 @@ experiment Coronaizer type:gui autorun:false{
 	}	
 }
 
-experiment CoronaizerHeadless type:gui autorun:false{
+experiment CoronaizerHeadless type:gui autorun:false virtual: true{ 
 
 	parameter 'title:' var: title category: 'Initialization' <- "Reference";
 	parameter 'fileName:' var: useCase category: 'Initialization' <- "MediaLab" among: ["UDG/CUCS/Campus","UDG/CUSUR","UDG/CUCEA","UDG/CUAAD","UDG/CUT/campus","UDG/CUT/lab","UDG/CUT/room104","UDG/CUCS/Level 2","UDG/CUCS/Ground","UDG/CUCS_Campus","UDG/CUCS/Level 1","Factory", "MediaLab","CityScience","Learning_Center","ENSAL","SanSebastian"];
@@ -617,7 +617,7 @@ experiment CoronaizerHeadless type:gui autorun:false{
 			color: #white at: {world.shape.width/4,30#px,0.01}  perspective: true font:font("Helvetica", 20 , #plain);
 		}
 	  }	  
-	}	
+	}	 
 }
 
 

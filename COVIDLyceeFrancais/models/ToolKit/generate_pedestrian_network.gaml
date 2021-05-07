@@ -74,7 +74,7 @@ global {
 			}
 		
 		}
-		list<dxf_element> rooms <- dxf_element where (each.layer in [offices, supermarket, meeting_rooms,coffee,lab]);
+		list<dxf_element> roomss <- dxf_element where (each.layer in [offices, supermarket, meeting_rooms,coffee,lab]);
 		list<dxf_element> rooms_entrances <- dxf_element where (each.layer in [entrance, offices, supermarket, meeting_rooms,coffee,lab]);
 		write "Number of dxf elements:" + length(dxf_element);
 		
@@ -89,7 +89,7 @@ global {
 					contour <- contour - (shape +dist);
 				}
 				if cpt < limit_cpt_for_entrance_room_creation {
-					ask (rooms) at_distance 1.0 {
+					ask (roomss) at_distance 1.0 {
 						contour <- contour - (shape + dist);
 					}
 				}
