@@ -14,8 +14,8 @@ import "./../ToolKit/DXF_Loader.gaml"
 global {
 	
 	list<string> workplace_layer <- [offices, meeting_rooms, classe];
-	float normal_step <- 1#s;
-	float fast_step <- 1#mn;
+	float normal_step <- 5#s;
+	float fast_step <- 2#mn;
 	bool use_change_step <- true;
 	bool synchronized_step <- true;
 	
@@ -1072,6 +1072,9 @@ species room {
 		return nb_affected < length(places);
 	}
 	place_in_room get_target(people p, bool random_place){
+		if empty(available_places){
+			return nil;
+		}
 		place_in_room place <- random_place ? one_of(available_places) : (available_places with_max_of each.dists);
 		available_places >> place;
 		return place;
@@ -1422,7 +1425,9 @@ species people skills: [escape_pedestrian] schedules: people where (not each.end
 						}
 					} else {
 						room tr <- current_activity.get_place(self);
-						if (tr != nil ) {
+						if(tr = target_room) {
+							target <- any_location_in(tr);
+						} else if (tr != nil ) {
 							target_room <- tr;
 							target <- (target_room.entrances closest_to self).location;
 						}
